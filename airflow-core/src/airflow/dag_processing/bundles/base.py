@@ -21,6 +21,7 @@ import fcntl
 import logging
 import os
 import shutil
+import sys
 import tempfile
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
@@ -281,6 +282,13 @@ class BaseDagBundle(ABC):
         If it isn't naturally safe, you'll need to make it so with some form of locking.
         There is a `lock` context manager on this class available for this purpose.
         """
+
+        # Add bundle path to sys.path for DAG imports
+        with self.lock():
+            path_str = str(self.path)
+            if path_str not in sys.path:
+                sys.path.append(path_str)
+                log.debug("Added DAG bundle to sys.path: %s (%s)", self.name, path_str)
         self.is_initialized = True
 
     @property
