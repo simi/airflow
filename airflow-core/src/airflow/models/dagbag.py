@@ -422,12 +422,13 @@ class DagBag(LoggingMixin):
 
         def parse(mod_name, filepath):
             try:
-                loader = importlib.machinery.SourceFileLoader(mod_name, filepath)
-                spec = importlib.util.spec_from_loader(mod_name, loader)
-                new_module = importlib.util.module_from_spec(spec)
-                sys.modules[spec.name] = new_module
-                loader.exec_module(new_module)
-                return [new_module]
+                with self.temporarily_prepend_to_syspath():
+                    loader = importlib.machinery.SourceFileLoader(mod_name, filepath)
+                    spec = importlib.util.spec_from_loader(mod_name, loader)
+                    new_module = importlib.util.module_from_spec(spec)
+                    sys.modules[spec.name] = new_module
+                    loader.exec_module(new_module)
+                    return [new_module]
             except KeyboardInterrupt:
                 # re-raise ctrl-c
                 raise
@@ -710,6 +711,27 @@ class DagBag(LoggingMixin):
             self.dag_warnings,
             session=session,
         )
+
+    @contextlib.contextmanager
+    def temporarily_prepend_to_syspath(self):
+        """Temporarily add a path to sys.path if not already present, and remove it if added."""
+        path = str(self.bundle_path)
+        added = False
+
+        if path not in sys.path:
+            sys.path.append(path)
+            added = True
+            self.log.debug("Temporarily added bundle path to sys.path: %s", path)
+
+        try:
+            yield
+        finally:
+            if added:
+                try:
+                    sys.path.remove(path)
+                    self.log.debug("Removed temporary bundle path from sys.path: %s", path)
+                except ValueError:
+                    self.log.warning("Expected path not found in sys.path during cleanup: %s", path)
 
 
 def generate_md5_hash(context):
